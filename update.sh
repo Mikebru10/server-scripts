@@ -6,8 +6,8 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Define email recipient
-EMAIL_RECIPIENT="mikebru10@protonmail.com"
+# Load email recipient from environment variable
+EMAIL_RECIPIENT="${EMAIL_RECIPIENT:-default@example.com}"
 
 # Get hostname and IP address
 HOSTNAME=$(hostname)
