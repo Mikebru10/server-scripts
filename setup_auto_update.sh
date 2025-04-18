@@ -1,15 +1,24 @@
 #!/bin/bash
 
-# === CONFIG ===
+# === Config ===
 EMAIL_PLACEHOLDER="default@example.com"
 COMMIT_MESSAGE="Add auto-update workflow and update script"
-
-# === FILE PATHS ===
 SCRIPT_DIR="$(pwd)"
 UPDATE_SCRIPT="$SCRIPT_DIR/update.sh"
 WORKFLOW_FILE="$SCRIPT_DIR/.github/workflows/update.yml"
 
-# === Create directory if needed ===
+# === Pre-checks ===
+if ! command -v git &> /dev/null; then
+  echo "❌ Git is not installed. Please install Git and rerun the script."
+  exit 1
+fi
+
+if ! git rev-parse --is-inside-work-tree &> /dev/null; then
+  echo "❌ This directory is not a Git repository. Please run inside a GitHub-cloned repo."
+  exit 1
+fi
+
+# === Create GitHub Actions directory ===
 mkdir -p "$(dirname "$WORKFLOW_FILE")"
 
 # === Write update.sh ===
@@ -21,6 +30,10 @@ if [ "\$EUID" -ne 0 ]; then
   echo "Please run as root or with sudo."
   exit 1
 fi
+
+# Pull the latest version of this repo (ensure script is up to date)
+cd "$(pwd)"
+git pull
 
 # Load email from environment
 EMAIL_RECIPIENT="\${EMAIL_RECIPIENT:-$EMAIL_PLACEHOLDER}"
@@ -76,7 +89,7 @@ echo "Rebooting..."
 reboot
 EOF
 
-# === Write GitHub Actions Workflow ===
+# === Write GitHub Actions workflow ===
 cat << 'EOF' > "$WORKFLOW_FILE"
 name: System Update
 
@@ -102,7 +115,7 @@ jobs:
         run: ./update.sh
 EOF
 
-# === Set executable permission ===
+# === Set permissions ===
 chmod +x "$UPDATE_SCRIPT"
 
 # === Git Add, Commit & Push ===
@@ -110,5 +123,5 @@ git add "$UPDATE_SCRIPT" "$WORKFLOW_FILE"
 git commit -m "$COMMIT_MESSAGE"
 git push
 
-echo "✅ Auto-update feature has been committed and pushed."
-echo "📌 Be sure to add the secret 'EMAIL_RECIPIENT' in your GitHub repository settings."
+echo "✅ Auto-update workflow and script created, committed, and pushed."
+echo "📌 Don’t forget to add the GitHub secret: EMAIL_RECIPIENT"
