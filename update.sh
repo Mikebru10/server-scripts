@@ -1,17 +1,36 @@
 #!/bin/bash
 
+set -e
+
 # Ensure the script is run as root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root or with sudo."
   exit 1
 fi
 
-# Load email recipient from environment variable
-EMAIL_RECIPIENT="${EMAIL_RECIPIENT:-default@example.com}"
-
-# Get hostname and IP address
+# Variables
+EMAIL_RECIPIENT="mikebru10@protonmail.com"
+REPO_URL="https://github.com/Mikebru10/server-scripts.git"
+LOCAL_DIR="/home/mike/server-scripts"
 HOSTNAME=$(hostname)
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
+TEMP_DIR="/tmp/server-scripts-tmp"
+
+# Clone or update the GitHub repo
+sync_repo() {
+  echo "Syncing server-scripts from GitHub..."
+
+  # If the folder exists and is a Git repo, pull the latest changes
+  if [ -d "$LOCAL_DIR/.git" ]; then
+    echo "Existing repo found at $LOCAL_DIR. Pulling latest changes..."
+    git -C "$LOCAL_DIR" reset --hard
+    git -C "$LOCAL_DIR" pull origin main
+  else
+    echo "Repo not found locally. Cloning fresh copy to $LOCAL_DIR..."
+    rm -rf "$LOCAL_DIR"
+    git clone "$REPO_URL" "$LOCAL_DIR"
+  fi
+}
 
 # Function to update and upgrade packages
 update_packages() {
@@ -54,31 +73,22 @@ configure_auto_restart() {
 # Function to send a confirmation email
 send_confirmation_email() {
   SUBJECT="Update/Upgrade for $HOSTNAME - $IP_ADDRESS has completed successfully"
-  BODY="The update/upgrade process for the server with hostname '$HOSTNAME' and IP address '$IP_ADDRESS' has completed successfully."
+  BODY="The update/upgrade process for the server with hostname '$HOSTNAME' and IP address '$IP_ADDRESS' has completed successfully. Local scripts were also updated from GitHub."
   
   echo "$BODY" | mailx -s "$SUBJECT" "$EMAIL_RECIPIENT"
 }
 
-# Main script execution
+# MAIN EXECUTION
 echo "Starting Ubuntu Server Update Script..."
 
-# Update and upgrade the system
+sync_repo
 update_packages
-
-# Configure automatic service restarts
 configure_auto_restart
-
-# Upgrade the Ubuntu release
 upgrade_release
-
-# Clean up the system
 cleanup_system
-
-# Send confirmation email
 send_confirmation_email
 
 echo "Update complete. A confirmation email has been sent to $EMAIL_RECIPIENT."
 
-# Reboot the server
 echo "Rebooting the server..."
 reboot
