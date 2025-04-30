@@ -2,7 +2,7 @@
 
 set -e
 
-# Ensure script is run as root
+# Ensure the script is run as root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root or with sudo."
   exit 1
@@ -16,8 +16,15 @@ SCRIPT_PATH="$(realpath "$0")"
 HOSTNAME=$(hostname)
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
 CRON_SCHEDULE="0 2 * * *"
+TZ="America/Chicago"
 
 # --- Functions ---
+
+install_required_packages() {
+  echo "Installing required packages (git, mailutils)..."
+  apt-get update -y
+  DEBIAN_FRONTEND=noninteractive apt-get install -yq git mailutils
+}
 
 sync_repo() {
   echo "Syncing server-scripts from GitHub..."
@@ -48,7 +55,7 @@ cleanup_system() {
 
 upgrade_release() {
   echo "Checking for release upgrades..."
-  apt-get install -yq update-manager-core
+  DEBIAN_FRONTEND=noninteractive apt-get install -yq update-manager-core
   if [ -f /etc/update-manager/release-upgrades ]; then
     echo "Upgrading to the latest release..."
     DEBIAN_FRONTEND=noninteractive do-release-upgrade -f DistUpgradeViewNonInteractive || echo "No release upgrade available or completed"
@@ -66,6 +73,9 @@ send_confirmation_email() {
 }
 
 setup_cronjob() {
+  echo "Setting timezone to $TZ..."
+  timedatectl set-timezone "$TZ"
+
   echo "Setting up cron job to run this script daily at 2:00 AM CST..."
   crontab -l 2>/dev/null | grep -F "$SCRIPT_PATH" > /dev/null
   if [ $? -ne 0 ]; then
@@ -79,6 +89,7 @@ setup_cronjob() {
 # --- Main Execution ---
 echo "Starting automated Ubuntu maintenance process..."
 
+install_required_packages
 sync_repo
 update_packages
 configure_auto_restart
