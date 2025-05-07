@@ -2,7 +2,7 @@
 
 set -e
 
-# Ensure the script is run as root
+# --- Root Check ---
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root or with sudo."
   exit 1
@@ -12,6 +12,7 @@ fi
 EMAIL_RECIPIENT="mikebru10@protonmail.com"
 REPO_URL="https://github.com/Mikebru10/server-scripts.git"
 LOCAL_DIR="/home/mike/server-scripts"
+TEMP_CLONE="/tmp/server-scripts-update"
 SCRIPT_PATH="$(realpath "$0")"
 HOSTNAME=$(hostname)
 IP_ADDRESS=$(hostname -I | awk '{print $1}')
@@ -26,16 +27,23 @@ install_required_packages() {
   DEBIAN_FRONTEND=noninteractive apt-get install -yq git mailutils
 }
 
-sync_repo() {
-  echo "Syncing server-scripts from GitHub..."
-  if [ -d "$LOCAL_DIR/.git" ]; then
-    git -C "$LOCAL_DIR" reset --hard
-    git -C "$LOCAL_DIR" pull origin main
-  else
-    echo "Cloning fresh copy to $LOCAL_DIR..."
-    rm -rf "$LOCAL_DIR"
-    git clone "$REPO_URL" "$LOCAL_DIR"
-  fi
+update_local_repo() {
+  echo "Updating local repo from GitHub..."
+
+  # Remove temp directory if it exists
+  rm -rf "$TEMP_CLONE"
+
+  # Clone the latest version
+  git clone --depth=1 "$REPO_URL" "$TEMP_CLONE"
+
+  # Sync updated contents into LOCAL_DIR
+  mkdir -p "$LOCAL_DIR"
+  rsync -a --delete "$TEMP_CLONE/" "$LOCAL_DIR/"
+
+  # Cleanup
+  rm -rf "$TEMP_CLONE"
+
+  echo "Local repo at $LOCAL_DIR has been updated with the latest files."
 }
 
 update_packages() {
@@ -68,7 +76,7 @@ configure_auto_restart() {
 
 send_confirmation_email() {
   SUBJECT="Update/Upgrade for $HOSTNAME - $IP_ADDRESS has completed successfully"
-  BODY="The update/upgrade process for '$HOSTNAME' ($IP_ADDRESS) completed successfully. Local scripts were synced from GitHub."
+  BODY="The update/upgrade process for '$HOSTNAME' ($IP_ADDRESS) completed successfully. Local scripts were refreshed from GitHub."
   echo "$BODY" | mailx -s "$SUBJECT" "$EMAIL_RECIPIENT"
 }
 
@@ -87,10 +95,10 @@ setup_cronjob() {
 }
 
 # --- Main Execution ---
-echo "Starting automated Ubuntu maintenance process..."
+echo "Starting Ubuntu maintenance script..."
 
 install_required_packages
-sync_repo
+update_local_repo
 update_packages
 configure_auto_restart
 upgrade_release
